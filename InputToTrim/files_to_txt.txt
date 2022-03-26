@@ -1,0 +1,3 @@
+README: Add a pair of values per file with pattern [ti] [tf] (brackets and white space are mandatory), where ti: initial time; tf: final time. The pattern per variable (ti and tf) must be in the form of xx:xx:xx. Multiple trim are allowed if separated with a white space
+P_A_0160.MP4 [00:00:01] [00:00:03] [00:00:00] [00:00:04]
+P_A_0164.MP4 [00:00:01] [00:00:04]
