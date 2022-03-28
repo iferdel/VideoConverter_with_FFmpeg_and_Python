@@ -1,8 +1,9 @@
-from VideoConverter import VideoConverter, VideoTrimmer
+from converter import VideoConverter, VideoTrimmer
 import pandas as pd
 import numpy as np
 import os
 from pathlib import Path
+import multiprocessing
 
 def trim_dataframe(file_list, trim_list):
     df = pd.DataFrame(data={'file': file_list, 'ti-tf': trim_list})
@@ -37,7 +38,8 @@ def trimmer_converter():
         df.loc[item, 'ffmpeg_trim_call'] = 'ffmpeg -ss {} -i {} -to {} -minrate 10M -c:v copy {}'.format(
                                   df.loc[item,'ti'], df.loc[item,'file'], df.loc[item,'tf'], 
                                   os.path.join(Path(converter.path).parents[0], converter.output_folder, df.loc[item,'trim_output_file']))
-    converter.ffmpeg_call(dataframe=df, ffmpeg_call_column='ffmpeg_trim_call')
+    p = multiprocessing.Process(target=converter.ffmpeg_call, args=(df, 'ffmpeg_trim_call'))
+    p.start()
 
 def crop_converter():
     choices = ['y','N']
@@ -66,8 +68,9 @@ def crop_converter():
                                                        os.path.join(converter.path, converter.output_folder, df.loc[item,'crop_output_file'])),
                                                       'ffmpeg -i {} -b:v 5M {}'.format(df.loc[item,'file'],
                                                        os.path.join(converter.path, converter.output_folder, df.loc[item,'crop_output_file'])))
-    converter.ffmpeg_call(dataframe=df, ffmpeg_call_column='ffmpeg_crop_call')
-
+    p = multiprocessing.Process(target=converter.ffmpeg_call, args=(df, 'ffmpeg_crop_call'))
+    p.start()
+    
 def main():
     trimmer_converter()
     crop_converter()
