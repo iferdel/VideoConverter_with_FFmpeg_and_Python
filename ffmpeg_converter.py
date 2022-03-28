@@ -1,4 +1,4 @@
-from converter import VideoConverter, VideoTrimmer
+from converter import VideoCropper, VideoTrimmer
 import pandas as pd
 import numpy as np
 import os
@@ -29,9 +29,9 @@ def trimmer_converter():
     df = trim_dataframe(converter.txt_file_read()[0], converter.txt_file_read()[1])
     converter.set_output_folder()
     df['file'] = df.loc[:,'file'].str.split(".")
-    df['trim_output_file'] = df.loc[:,'file'].str[0]+'_ti_'+df.loc[:,'ti']+'_tf_'+df.loc[:,'tf']+ \
-                                       '.'+df.loc[:,'file'].iloc[0][1]
-    df['trim_output_file'] = [x.replace(':', '_') for x  in df.loc[:,'trim_output_file'].to_numpy()]
+    df['trim_output_file'] = df.loc[:, 'file'].str[0] + '_ti_' + df.loc[:, 'ti'] + '_tf_' + df.loc[:, 'tf'] + \
+                                       '.' + df.loc[:, 'file'].iloc[0][1]
+    df['trim_output_file'] = [x.replace(':', '_') for x  in df.loc[:, 'trim_output_file'].to_numpy()]
     df['file'] = df.loc[:,'file'].str[0]+'.'+df.loc[:,'file'].iloc[0][1]
     df = df.reset_index(drop=True)
     for item in df.index:
@@ -47,13 +47,13 @@ def crop_converter():
     while from_trim_output_user_input not in choices:
         from_trim_output_user_input = input('Convert files from trim output folder? [y/N]')
         if from_trim_output_user_input not in choices: print('Incorrect answer')
-    converter = VideoConverter(pattern='.*((?=.mp4|.MP4|.mov|.MOV))', from_trim_output=from_trim_output_user_input)
+    converter = VideoCropper(pattern='.*((?=.mp4|.MP4|.mov|.MOV))', from_trim_output=from_trim_output_user_input)
     converter.resolution_data()
     df = resolution_dataframe(converter.files, converter.resolution)
     converter.set_output_folder()
     df['file'] = df.loc[:,'file'].str.split(".")
-    df['crop_output_file'] = df.loc[:,'file'].str[0]+'_Cropped'+'.'+df.loc[:,'file'].iloc[0][1]
-    df['file'] = df.loc[:,'file'].str[0]+'.'+df.loc[:,'file'].iloc[0][1]
+    df['crop_output_file'] = df.loc[:,'file'].str[0]+'_Cropped' + '.' + df.loc[:,'file'].iloc[0][1]
+    df['file'] = df.loc[:,'file'].str[0] + '.' + df.loc[:,'file'].iloc[0][1]
     df = df.reset_index(drop=True)
     for item in df.index:
         if converter.from_trim_output == 'y':
