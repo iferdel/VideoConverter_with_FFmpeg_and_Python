@@ -1,4 +1,4 @@
-from converter import VideoCropper, VideoTrimmer
+from converter_base import VideoCropper, VideoTrimmer
 import pandas as pd
 import numpy as np
 import os
@@ -23,11 +23,11 @@ def resolution_dataframe(file_list, resolution_list):
     return df
 
 def trimmer_converter():
-    converter = VideoTrimmer()
-    if 'files_to_txt.txt' not in os.listdir(converter.path): converter.files_to_txt()
-    else: input("Make sure to define de trim margins. Press enter to continue...")
-    df = trim_dataframe(converter.txt_file_read()[0], converter.txt_file_read()[1])
-    converter.set_output_folder()
+    trim = VideoTrimmer(pattern='.*((?=.mp4|.MP4|.mov|.MOV))')   #this three lines looks like inicialization, so they could be compressed
+    trim.set_input_folder(input_folder='InputToTrim')
+    trim.set_output_folder(output_folder='OutputFromTrim')
+    trim.files_to_txt()
+    df = trim_dataframe(trim.txt_file_read()[0], trim.txt_file_read()[1])
     df['file'] = df.loc[:,'file'].str.split(".")
     df['trim_output_file'] = df.loc[:, 'file'].str[0] + '_ti_' + df.loc[:, 'ti'] + '_tf_' + df.loc[:, 'tf'] + \
                                        '.' + df.loc[:, 'file'].iloc[0][1]
@@ -36,39 +36,28 @@ def trimmer_converter():
     df = df.reset_index(drop=True)
     for item in df.index:
         df.loc[item, 'ffmpeg_trim_call'] = 'ffmpeg -ss {} -i {} -to {} -minrate 10M -c:v copy {}'.format(
-                                  df.loc[item,'ti'], df.loc[item,'file'], df.loc[item,'tf'], 
-                                  os.path.join(Path(converter.path).parents[0], converter.output_folder, df.loc[item,'trim_output_file']))
-    p = multiprocessing.Process(target=converter.ffmpeg_call, args=(df, 'ffmpeg_trim_call'))
+                                  df.loc[item,'ti'], os.path.join(trim.files_input_path, df.loc[item,'file']), df.loc[item,'tf'], 
+                                  os.path.join(trim.files_output_path, df.loc[item,'trim_output_file']))
+    p = multiprocessing.Process(target=trim.ffmpeg_call, args=(df, 'ffmpeg_trim_call'))
     p.start()
 
 def crop_converter():
-    choices = ['y','N']
-    from_trim_output_user_input = None
-    while from_trim_output_user_input not in choices:
-        from_trim_output_user_input = input('Convert files from trim output folder? [y/N]')
-        if from_trim_output_user_input not in choices: print('Incorrect answer')
-    converter = VideoCropper(pattern='.*((?=.mp4|.MP4|.mov|.MOV))', from_trim_output=from_trim_output_user_input)
-    converter.resolution_data()
-    df = resolution_dataframe(converter.files, converter.resolution)
-    converter.set_output_folder()
+    crop = VideoCropper(pattern='.*((?=.mp4|.MP4|.mov|.MOV))')
+    crop.set_input_folder(input_folder='OutputFromTrim')
+    crop.set_output_folder(output_folder='OutputFromCrop')
+    crop.resolution_data()
+    df = resolution_dataframe(crop.files, crop.resolution)
     df['file'] = df.loc[:,'file'].str.split(".")
     df['crop_output_file'] = df.loc[:,'file'].str[0]+'_Cropped' + '.' + df.loc[:,'file'].iloc[0][1]
     df['file'] = df.loc[:,'file'].str[0] + '.' + df.loc[:,'file'].iloc[0][1]
     df = df.reset_index(drop=True)
-    for item in df.index:
-        if converter.from_trim_output == 'y':
-            df.loc[item, 'ffmpeg_crop_call'] = np.where(df.loc[item]['resolution'] == '3328x2496', 
-                                                      'ffmpeg -i {} -vf "crop=1080:1920:1124:253" -b:v 5M {}'.format(df.loc[item,'file'], 
-                                                       os.path.join(Path(converter.path).parents[0], converter.output_folder, df.loc[item,'crop_output_file'])),
-                                                      'ffmpeg -i {} -b:v 5M {}'.format(df.loc[item,'file'],
-                                                       os.path.join(Path(converter.path).parents[0], converter.output_folder, df.loc[item,'crop_output_file'])))
-        else:
-            df.loc[item, 'ffmpeg_crop_call'] = np.where(df.loc[item]['resolution'] == '3328x2496', 
-                                                      'ffmpeg -i {} -vf "crop=1080:1920:1124:253" -b:v 5M {}'.format(df.loc[item,'file'], 
-                                                       os.path.join(converter.path, converter.output_folder, df.loc[item,'crop_output_file'])),
-                                                      'ffmpeg -i {} -b:v 5M {}'.format(df.loc[item,'file'],
-                                                       os.path.join(converter.path, converter.output_folder, df.loc[item,'crop_output_file'])))
-    p = multiprocessing.Process(target=converter.ffmpeg_call, args=(df, 'ffmpeg_crop_call'))
+    for item in df.index:   
+        df.loc[item, 'ffmpeg_crop_call'] = np.where(df.loc[item]['resolution'] == '3328x2496', 
+                                                      'ffmpeg -i {} -vf "crop=1080:1920:1124:253" -b:v 5M {}'.format(os.path.join(crop.files_input_path, df.loc[item,'file']), 
+                                                       os.path.join(crop.files_output_path, df.loc[item,'crop_output_file'])),
+                                                      'ffmpeg -i {} -b:v 5M {}'.format(os.path.join(crop.files_input_path, df.loc[item,'file']),
+                                                       os.path.join(crop.files_output_path, df.loc[item,'crop_output_file'])))
+    p = multiprocessing.Process(target=crop.ffmpeg_call, args=(df, 'ffmpeg_crop_call'))
     p.start()
     
 def main():
