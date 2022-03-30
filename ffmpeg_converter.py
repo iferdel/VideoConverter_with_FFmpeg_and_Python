@@ -1,19 +1,17 @@
-from converter_base import VideoCropper, VideoTrimmer
+from videoeditor import VideoCropper, VideoTrimmer
 import pandas as pd
 import numpy as np
 import os
-from pathlib import Path
 import multiprocessing
 
 def trim_dataframe(file_list, trim_list):
     df = pd.DataFrame(data={'file': file_list, 'ti-tf': trim_list})
     df = df.apply(pd.Series.explode)
-    df['tf'] = df['ti-tf'].shift(-1)
-    df = df.iloc[:-1]
-    df = df[0::2]
-    df.rename(columns={'ti-tf': 'ti'}, inplace=True) 
-    df['ti'] = df['ti'].str.strip('[]')
-    df['tf'] = df['tf'].str.strip('[]')
+    df['tf'] = df['ti-tf'].shift(-1) #shift(-1) to generate the pattern ti-tf
+    df.rename(columns={'ti-tf': 'ti'}, inplace=True)
+    df = df.iloc[:-1] # remove last row
+    df = df[0::2] # take back only the rows with pair indexes from the explode (to avoid having tf-ti pattern)
+    df['ti'] = df['ti'].str.strip('[]'); df['tf'] = df['tf'].str.strip('[]')
     return df
     
 def resolution_dataframe(file_list, resolution_list):
@@ -23,11 +21,8 @@ def resolution_dataframe(file_list, resolution_list):
     return df
 
 def trimmer_converter():
-    trim = VideoTrimmer(pattern='.*((?=.mp4|.MP4|.mov|.MOV))')   #this three lines looks like inicialization, so they could be compressed
-    trim.set_input_folder(input_folder='InputToTrim')
-    trim.set_output_folder(output_folder='OutputFromTrim')
-    trim.files_to_txt()
-    df = trim_dataframe(trim.txt_file_read()[0], trim.txt_file_read()[1])
+    trim = VideoTrimmer(pattern='.*((?=.mp4|.MP4|.mov|.MOV))', input_folder='InputToTrim', output_folder='OutputFromTrim') 
+    df = trim_dataframe(trim.trim_margins_from_file()[0], trim.trim_margins_from_file()[1])
     df['file'] = df.loc[:,'file'].str.split(".")
     df['trim_output_file'] = df.loc[:, 'file'].str[0] + '_ti_' + df.loc[:, 'ti'] + '_tf_' + df.loc[:, 'tf'] + \
                                        '.' + df.loc[:, 'file'].iloc[0][1]
@@ -42,9 +37,7 @@ def trimmer_converter():
     p.start()
 
 def crop_converter():
-    crop = VideoCropper(pattern='.*((?=.mp4|.MP4|.mov|.MOV))')
-    crop.set_input_folder(input_folder='OutputFromTrim')
-    crop.set_output_folder(output_folder='OutputFromCrop')
+    crop = VideoCropper(pattern='.*((?=.mp4|.MP4|.mov|.MOV))', input_folder='OutputFromTrim', output_folder='OutputFromCrop')
     crop.resolution_data()
     df = resolution_dataframe(crop.files, crop.resolution)
     df['file'] = df.loc[:,'file'].str.split(".")
