@@ -6,7 +6,7 @@ FFmpeg is a *collection of libraries and tools* to process multimedia content su
 
 It is the most popular video and image processing software by a mile and is used by many companies across various industries.
 
-### This repository shares a method for trimming and crop multiple videos. 
+### This repository shares a method to trim and crop multiple videos. 
 
 **It is intended to manipulate videos in order to retrieve formats widely used in social media platforms. Therefore, certain values like cropping factor are stated for this purpose and they can be changed at will if needed**
 
