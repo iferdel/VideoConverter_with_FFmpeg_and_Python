@@ -7,11 +7,14 @@ import numpy as np
 
 class VideoEditor():
 
-    def __init__(self, pattern, input_folder, output_folder):
+    def __init__(self, pattern, input_folder, output_folder, ffmpeg_quiet_mode=False):
         self.pattern = pattern
         self.input_folder = input_folder
         self.output_folder = output_folder
         self.path = os.getcwd()
+        if ffmpeg_quiet_mode == True: ffmpeg_quiet_mode = '-loglevel quiet'
+        else: ffmpeg_quiet_mode = ''
+        self.quiet_mode = ffmpeg_quiet_mode
         
         if self.input_folder not in os.listdir(self.path): os.mkdir(self.input_folder)
         if self.output_folder not in os.listdir(self.path): os.mkdir(self.output_folder)
@@ -20,7 +23,10 @@ class VideoEditor():
         self.files_output_path = os.path.join(self.path, self.output_folder)
 
         self.dirs = os.listdir(self.files_input_path)
-        self.files = [file for file in self.dirs if re.match(self.pattern, file) is not None]     
+        self.files = [file for file in self.dirs if re.match(self.pattern, file) is not None]  
+
+    def __str__(self):
+        return '''Files being used: {}'''.format(self.files)   
         
     def ffmpeg_call(self, dataframe, ffmpeg_call_column):
         [subprocess.run(f'{i}') for i in dataframe.loc[:,ffmpeg_call_column] if i is not None]
@@ -28,8 +34,8 @@ class VideoEditor():
 
 class VideoCropper(VideoEditor):
 
-    def __init__(self, pattern, input_folder, output_folder):
-        super(VideoCropper, self).__init__(pattern, input_folder, output_folder)    
+    def __init__(self, pattern, input_folder, output_folder, ffmpeg_quiet_mode):
+        super(VideoCropper, self).__init__(pattern, input_folder, output_folder, ffmpeg_quiet_mode)    
 
         self.resolution = [(subprocess.check_output(f'ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 {os.path.join(self.files_input_path, file)}',
                             shell=True)).decode('utf-8').strip() for file in self.files]
@@ -44,17 +50,17 @@ class VideoCropper(VideoEditor):
         df = df.reset_index(drop=True)
         for item in df.index:   
             df.loc[item, 'ffmpeg_crop_call'] = np.where(df.loc[item]['resolution'] == '3328x2496', 
-                                                        'ffmpeg -i {} -vf "crop=1080:1920:1124:253" -b:v 5M {}'.format(os.path.join(self.files_input_path, df.loc[item,'file']), 
-                                                        os.path.join(self.files_output_path, df.loc[item,'crop_output_file'])),
-                                                        'ffmpeg -i {} -b:v 5M {}'.format(os.path.join(self.files_input_path, df.loc[item,'file']),
-                                                        os.path.join(self.files_output_path, df.loc[item,'crop_output_file'])))
+                                                        'ffmpeg -i {} -vf "crop=1080:1920:1124:253" -b:v 5M {} {}'.format(os.path.join(self.files_input_path, df.loc[item,'file']), 
+                                                        self.quiet_mode, os.path.join(self.files_output_path, df.loc[item,'crop_output_file'])),
+                                                        'ffmpeg -i {} -b:v 5M {} {}'.format(os.path.join(self.files_input_path, df.loc[item,'file']),
+                                                        self.quiet_mode, os.path.join(self.files_output_path, df.loc[item,'crop_output_file'])))
         return df
 
 
 class VideoTrimmer(VideoEditor):
-    
-    def __init__(self, pattern, input_folder, output_folder):
-        super(VideoTrimmer, self).__init__(pattern, input_folder, output_folder)
+
+    def __init__(self, pattern, input_folder, output_folder, ffmpeg_quiet_mode):
+        super(VideoTrimmer, self).__init__(pattern, input_folder, output_folder, ffmpeg_quiet_mode)
 
         if 'files_to_txt.txt' not in os.listdir(self.files_input_path):
             txt = ['README: Add a pair of values per file with pattern [ti] [tf] (brackets and white space are mandatory), '\
@@ -63,16 +69,18 @@ class VideoTrimmer(VideoEditor):
             txt.extend(self.files)
             with open(os.path.join(self.path, "files_to_txt.txt"), "w") as outfile: outfile.write("\n".join(txt)) 
         else: input("Make sure to define de trim margins. Press enter to continue...")
-   
-    def trimmer_dataframe(self):
         with open(os.path.join(self.files_input_path, "files_to_txt.txt")) as f:
             next(f)
             txt = [i.split('\n')[0].strip() for i in [line for line in f]]
         txt = [item.split(' ') for item in txt]
-        files = [item[0] for item in txt]
-        trim_parameter = [list(filter(None, item[1:])) for item in txt]
-        df = pd.DataFrame(data={'file': files, 'ti-tf': trim_parameter})
-        del files, trim_parameter
+        self.files = [item[0] for item in txt]
+        self.trim_parameter = [list(filter(None, item[1:])) for item in txt]
+    
+    def __str__(self):
+        return '''Files being used: {}, and their trim margins [ti,tf] are: {}, respectively'''.format(self.files, self.trim_parameter)
+   
+    def trimmer_dataframe(self):
+        df = pd.DataFrame(data={'file': self.files, 'ti-tf': self.trim_parameter})
         df = df.apply(pd.Series.explode)
         df['tf'] = df['ti-tf'].shift(-1) #shift(-1) to generate the pattern ti-tf
         df.rename(columns={'ti-tf': 'ti'}, inplace=True)
@@ -86,7 +94,7 @@ class VideoTrimmer(VideoEditor):
         df['file'] = df.loc[:,'file'].str[0] + '.'+ df.loc[:,'file'].iloc[0][1]
         df = df.reset_index(drop=True)
         for item in df.index:
-            df.loc[item, 'ffmpeg_trim_call'] = 'ffmpeg -ss {} -i {} -to {} -minrate 10M -c:v copy {}'.format(
+            df.loc[item, 'ffmpeg_trim_call'] = 'ffmpeg -ss {} -i {} -to {} -minrate 10M {} -c:v copy {}'.format(
                                     df.loc[item,'ti'], os.path.join(self.files_input_path, df.loc[item,'file']), df.loc[item,'tf'], 
-                                    os.path.join(self.files_output_path, df.loc[item,'trim_output_file']))   
+                                    self.quiet_mode, os.path.join(self.files_output_path, df.loc[item,'trim_output_file']))   
         return df                            
